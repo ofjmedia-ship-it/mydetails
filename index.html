@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Professional Productivity Suite</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f4f6f9;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    header {
+      background-color: #1a3c6d;
+      color: #fff;
+      padding: 20px;
+      border-radius: 8px 8px 0 0;
+      position: relative;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    header p {
+      margin: 5px 0 0;
+      font-size: 14px;
+    }
+    .secret-button {
+      opacity: 0.3;
+      background: none;
+      border: none;
+      cursor: pointer;
+      position: absolute;
+      top: 20px;
+      width: 24px;
+      height: 24px;
+      transition: opacity 0.3s;
+    }
+    .secret-button:hover {
+      opacity: 0.8;
+    }
+    #add-secret-button { left: 20px; }
+    #view-secret-button { right: 20px; }
+    .section {
+      padding: 20px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .section:last-child {
+      border-bottom: none;
+    }
+    h2 {
+      font-size: 20px;
+      margin-bottom: 15px;
+      color: #1a3c6d;
+    }
+    input, textarea, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #1a3c6d;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #153058;
+    }
+    .error {
+      color: #d32f2f;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    .todo-list .task {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .todo-list input[type="checkbox"] {
+      margin-right: 10px;
+    }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      text-align: center;
+    }
+    .calendar div {
+      padding: 10px;
+      background-color: #f9f9f9;
+      border: 1px solid #e0e0e0;
+    }
+    .calendar .header {
+      background-color: #1a3c6d;
+      color: #fff;
+      font-weight: bold;
+    }
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .gallery img {
+      width: 100%;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 4px;
+    }
+    .game-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .card {
+      width: 80px;
+      height: 80px;
+      background-color: #e0e0e0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+    .card.flipped {
+      transform: rotateY(180deg);
+    }
+    .card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      backface-visibility: hidden;
+    }
+    .hidden {
+      display: none;
+    }
+    @media (max-width: 600px) {
+      .container {
+        margin: 10px;
+      }
+      .game-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .card {
+        width: 60px;
+        height: 60px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Professional Productivity Suite</h1>
+      <p>Your all-in-one tool for staying organized and inspired</p>
+      <button id="add-secret-button" class="secret-button" title="Add Data"><svg xmlns="http://www.w3.org/2000/svg" fill="white" viewBox="0 0 24 24"><path d="M19.14 12.94a7 7 0 1 1-14-2 7 7 0 0 1 14 2zM15 12a3 3 0 1 0-6 0 3 3 0 0 0 6 0zm-9 8a9 9 0 0 1 18 0v1H6v-1z"/></svg></button>
+      <button id="view-secret-button" class="secret-button" title="View Data"><svg xmlns="http://www.w3.org/2000/svg" fill="white" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button>
+    </header>
+
+    <!-- Add Data Form (Hidden) -->
+    <div id="add-form" class="section hidden">
+      <h2>Add Secure Data</h2>
+      <div>
+        <label class="block font-medium">Name</label>
+        <input id="name-input" type="text" placeholder="e.g., Email Login">
+      </div>
+      <div>
+        <label class="block font-medium">Encrypted Key</label>
+        <input id="key-input" type="text" placeholder="Paste encrypted key">
+      </div>
+      <button id="add-button">Add Data</button>
+      <p id="add-error" class="error"></p>
+    </div>
+
+    <!-- View Data (Hidden) -->
+    <div id="view-data" class="section hidden">
+      <h2>Stored Data</h2>
+      <div id="data-list" class="space-y-2"></div>
+    </div>
+
+    <!-- To-Do List -->
+    <div class="section">
+      <h2>To-Do List</h2>
+      <div class="todo-list">
+        <div class="task"><input type="checkbox"><span>Review project timeline</span></div>
+        <div class="task"><input type="checkbox"><span>Schedule team meeting</span></div>
+        <div class="task"><input type="text" placeholder="Add new task..."></div>
+      </div>
+    </div>
+
+    <!-- Calendar -->
+    <div class="section">
+      <h2>Monthly Calendar</h2>
+      <div class="calendar">
+        <div class="header">Sun</div><div class="header">Mon</div><div class="header">Tue</div><div class="header">Wed</div><div class="header">Thu</div><div class="header">Fri</div><div class="header">Sat</div>
+        <div></div><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div>
+        <div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div>12</div><div>13</div>
+        <div>14</div><div>15</div><div>16</div><div>17</div><div>18</div><div>19</div><div>20</div>
+      </div>
+    </div>
+
+    <!-- Weather Widget -->
+    <div class="section">
+      <h2>Weather Forecast</h2>
+      <input type="text" placeholder="Enter city (e.g., Lagos)">
+      <div class="mt-2">Lagos: 28°C, Partly Cloudy</div>
+    </div>
+
+    <!-- Notes -->
+    <div class="section">
+      <h2>Notes</h2>
+      <textarea rows="4" placeholder="Jot down your thoughts..."></textarea>
+    </div>
+
+    <!-- Image Gallery -->
+    <div class="section">
+      <h2>Inspiration Gallery</h2>
+      <div class="gallery">
+        <img src="https://images.unsplash.com/photo-14973662105479-4275897d0059" alt="Office">
+        <img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e" alt="Beach">
+        <img src="https://images.unsplash.com/photo-1519681393784-d120267933ba" alt="Mountain">
+        <img src="https://images.unsplash.com/photo-1472214103451-9374bd1c798e" alt="Forest">
+      </div>
+    </div>
+
+    <!-- Memory Game -->
+    <div class="section">
+      <h2>Memory Challenge</h2>
+      <div id="game" class="game-grid"></div>
+      <p id="game-message" class="text-center mt-4"></p>
+    </div>
+  </div>
+
+  <script>
+    let pyodide = null;
+
+    // Load Pyodide and Python code
+    async function loadPyodideAndRun() {
+      pyodide = await loadPyodide();
+      await pyodide.loadPackage('micropip');
+      const pythonCode = `
+import hashlib
+import base64
+import os
+
+def custom_transform(text, reverse=False):
+    if not reverse:
+        shifted = ''.join(chr((ord(c) + 5) % 128) for c in text)
+        return shifted[::-1]
+    else:
+        unreversed = text[::-1]
+        return ''.join(chr((ord(c) - 5) % 128) for c in unreversed)
+
+def encrypt_password(password, pepper="", iterations=200000):
+    transformed = custom_transform(password + pepper)
+    salt = os.urandom(16)
+    key = hashlib.pbkdf2_hmac('sha256', (password + pepper).encode('utf-8'), salt, iterations, dklen=32)
+    combined = salt + key + transformed.encode('utf-8')
+    return base64.urlsafe_b64encode(combined).decode('utf-8')
+
+def decrypt_password(encoded):
+    try:
+        decoded = base64.urlsafe_b64decode(encoded.encode('utf-8'))
+        obfuscated_password = decoded[48:].decode('utf-8')
+        return custom_transform(obfuscated_password, reverse=True)
+    except Exception as e:
+        return f"Error: {str(e)}"
+`;
+      pyodide.runPython(pythonCode);
+    }
+    loadPyodideAndRun();
+
+    // Secret button handlers
+    document.getElementById('add-secret-button').addEventListener('click', () => {
+      document.getElementById('add-form').classList.toggle('hidden');
+      document.getElementById('view-data').classList.add('hidden');
+    });
+
+    document.getElementById('view-secret-button').addEventListener('click', () => {
+      document.getElementById('view-data').classList.toggle('hidden');
+      document.getElementById('add-form').classList.add('hidden');
+      displayStoredData();
+    });
+
+    // Add data
+    document.getElementById('add-button').addEventListener('click', async () => {
+      const name = document.getElementById('name-input').value;
+      const key = document.getElementById('key-input').value;
+      const error = document.getElementById('add-error');
+
+      if (!name || !key) {
+        error.textContent = 'Both name and key are required!';
+        return;
+      }
+      if (!pyodide) {
+        error.textContent = 'Processing environment not loaded yet.';
+        return;
+      }
+      error.textContent = '';
+
+      const storedData = JSON.parse(localStorage.getItem('passwordVault') || '[]');
+      storedData.push({ name, key });
+      localStorage.setItem('passwordVault', JSON.stringify(storedData));
+      document.getElementById('name-input').value = '';
+      document.getElementById('key-input').value = '';
+      error.textContent = 'Data added successfully!';
+      setTimeout(() => error.textContent = '', 3000);
+    });
+
+    // Display stored data
+    async function displayStoredData() {
+      const dataList = document.getElementById('data-list');
+      const storedData = JSON.parse(localStorage.getItem('passwordVault') || '[]');
+      dataList.innerHTML = '';
+      if (storedData.length === 0) {
+        dataList.innerHTML = '<p>No data stored yet.</p>';
+        return;
+      }
+      for (const item of storedData) {
+        const decrypted = await pyodide.runPythonAsync(`decrypt_password("${item.key.replace(/"/g, '\\"')}")`);
+        const div = document.createElement('div');
+        div.className = 'p-2 border-b';
+        div.innerHTML = `<strong>${item.name}</strong>: ${decrypted}`;
+        dataList.appendChild(div);
+      }
+    }
+
+    // Memory Game
+    const images = [
+      'https://images.unsplash.com/photo-1606117331085-5760e3d1e089',
+      'https://images.unsplash.com/photo-1518791841217-8f162f1e1131',
+      'https://images.unsplash.com/photo-1548199973-03cce0be8e24',
+      'https://images.unsplash.com/photo-1561948955-570b270e7c36',
+      'https://images.unsplash.com/photo-1519058082700-6d27c47e3b9b',
+      'https://images.unsplash.com/photo-1534361960069-24425e9434f4'
+    ];
+    const gameBoard = document.getElementById('game');
+    let cards = [...images, ...images].sort(() => Math.random() - 0.5);
+    let flippedCards = [];
+    let matchedPairs = 0;
+
+    cards.forEach((img, index) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<img src="${img}" class="hidden">`;
+      card.addEventListener('click', () => flipCard(index));
+      gameBoard.appendChild(card);
+    });
+
+    function flipCard(index) {
+      if (flippedCards.length < 2 && !flippedCards.includes(index)) {
+        const card = gameBoard.children[index];
+        card.classList.add('flipped');
+        card.querySelector('img').classList.remove('hidden');
+        flippedCards.push(index);
+
+        if (flippedCards.length === 2) {
+          setTimeout(checkMatch, 1000);
+        }
+      }
+    }
+
+    function checkMatch() {
+      const [first, second] = flippedCards;
+      if (cards[first] === cards[second]) {
+        matchedPairs++;
+        document.getElementById('game-message').textContent = 'Match found!';
+        if (matchedPairs === images.length) {
+          document.getElementById('game-message').textContent = 'You won!';
+        }
+      } else {
+        gameBoard.children[first].classList.remove('flipped');
+        gameBoard.children[first].querySelector('img').classList.add('hidden');
+        gameBoard.children[second].classList.remove('flipped');
+        gameBoard.children[second].querySelector('img').classList.add('hidden');
+        document.getElementById('game-message').textContent = 'No match, try again!';
+      }
+      flippedCards = [];
+      setTimeout(() => document.getElementById('game-message').textContent = '', 2000);
+    }
+  </script>
+</body>
+</html>
