@@ -380,7 +380,7 @@
     // GitHub API utilities
     async function getGitHubFile(pat) {
       try {
-        const response = await fetch(`https://api.github.com/repos/<your-username>/password-vault/contents/data.json`, {
+        const response = await fetch(`https://api.github.com/repos/ofjmedia-ship-it/mydetails/contents/data.json`, {
           headers: { Authorization: `token ${pat}` }
         });
         if (!response.ok) throw new Error('Failed to fetch data.json');
