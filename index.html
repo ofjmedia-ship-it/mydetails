@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Executive Productivity Suite</title>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/staticrypt@2.1.0/dist/staticrypt.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <style>
     body {
@@ -164,14 +165,14 @@
       0% { transform: translateX(0); }
       100% { transform: translateX(-100%); }
     }
-    .hidden {
-      display: none;
-    }
     .data-processor div {
       margin-bottom: 10px;
     }
     .data-processor input[type="radio"] {
       margin-right: 5px;
+    }
+    .hidden {
+      display: none;
     }
     @media (max-width: 600px) {
       .container {
@@ -220,14 +221,18 @@
     <div id="view-data" class="section hidden">
       <h2>Stored Data</h2>
       <div>
-        <label class="block font-medium">Export Data</label>
-        <textarea id="export-data" rows="4" placeholder="Exported JSON will appear here"></textarea>
-        <button id="export-button">Export</button>
+        <label class="block font-medium">Master Password</label>
+        <input id="master-password" type="password" placeholder="Enter master password">
       </div>
       <div>
-        <label class="block font-medium">Import Data</label>
-        <textarea id="import-data" rows="4" placeholder="Paste JSON to import"></textarea>
-        <button id="import-button">Import</button>
+        <label class="block font-medium">Save Encrypted Data</label>
+        <textarea id="save-data" rows="4" placeholder="Encrypted data will appear here"></textarea>
+        <button id="save-button">Save Data</button>
+      </div>
+      <div>
+        <label class="block font-medium">Load Encrypted Data</label>
+        <textarea id="load-data" rows="4" placeholder="Paste encrypted data"></textarea>
+        <button id="load-button">Load Data</button>
       </div>
       <div id="data-list" class="space-y-2 mt-4"></div>
       <p id="view-error" class="error"></p>
@@ -297,7 +302,7 @@
       <p id="game-message" class="text-center mt-4"></p>
     </div>
 
-    <!-- Data Processor (Merged from productivity-hub) -->
+    <!-- Data Processor -->
     <div class="section data-processor">
       <h2>Data Processor</h2>
       <div>
@@ -407,25 +412,47 @@ def decrypt_password(encoded):
       setTimeout(() => document.getElementById('add-error').textContent = '', 3000);
     });
 
-    // Export data
-    document.getElementById('export-button').addEventListener('click', () => {
+    // Save encrypted data
+    document.getElementById('save-button').addEventListener('click', () => {
+      const masterPassword = document.getElementById('master-password').value;
+      const saveData = document.getElementById('save-data');
+      const error = document.getElementById('view-error');
+
+      if (!masterPassword) {
+        error.textContent = 'Master password is required!';
+        return;
+      }
       const storedData = localStorage.getItem('passwordVault') || '[]';
-      document.getElementById('export-data').value = storedData;
+      try {
+        const encrypted = Staticrypt.encrypt(storedData, masterPassword);
+        saveData.value = encrypted;
+        error.textContent = 'Data encrypted successfully! Copy this string.';
+        setTimeout(() => error.textContent = '', 3000);
+      } catch (e) {
+        error.textContent = 'Error: Encryption failed';
+      }
     });
 
-    // Import data
-    document.getElementById('import-button').addEventListener('click', () => {
-      const importData = document.getElementById('import-data').value;
+    // Load encrypted data
+    document.getElementById('load-button').addEventListener('click', () => {
+      const masterPassword = document.getElementById('master-password').value;
+      const loadData = document.getElementById('load-data').value;
       const error = document.getElementById('view-error');
+
+      if (!masterPassword || !loadData) {
+        error.textContent = 'Master password and encrypted data are required!';
+        return;
+      }
       try {
-        const parsed = JSON.parse(importData);
+        const decrypted = Staticrypt.decrypt(loadData, masterPassword);
+        const parsed = JSON.parse(decrypted);
         if (!Array.isArray(parsed)) throw new Error('Invalid data format');
-        localStorage.setItem('passwordVault', importData);
-        error.textContent = 'Data imported successfully!';
+        localStorage.setItem('passwordVault', decrypted);
+        error.textContent = 'Data loaded successfully!';
         displayStoredData();
         setTimeout(() => error.textContent = '', 3000);
       } catch (e) {
-        error.textContent = 'Error: Invalid JSON data';
+        error.textContent = 'Error: Invalid password or data';
       }
     });
 
@@ -446,7 +473,7 @@ def decrypt_password(encoded):
       });
     }
 
-    // Data Processor (from productivity-hub)
+    // Data Processor
     async function handleProcess() {
       const dataInput = document.getElementById('data-input').value;
       const keyInput = document.getElementById('data-key-input').value;
