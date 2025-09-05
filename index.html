@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Professional Productivity Suite</title>
+  <title>Executive Productivity Suite</title>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <style>
@@ -30,14 +30,14 @@
     }
     header h1 {
       margin: 0;
-      font-size: 24px;
+      font-size: 26px;
     }
     header p {
       margin: 5px 0 0;
       font-size: 14px;
     }
     .secret-button {
-      opacity: 0.3;
+      opacity: 0.4;
       background: none;
       border: none;
       cursor: pointer;
@@ -48,7 +48,7 @@
       transition: opacity 0.3s;
     }
     .secret-button:hover {
-      opacity: 0.8;
+      opacity: 0.9;
     }
     #add-secret-button { left: 20px; }
     #view-secret-button { right: 20px; }
@@ -92,8 +92,10 @@
       align-items: center;
       margin-bottom: 10px;
     }
-    .todo-list input[type="checkbox"] {
-      margin-right: 10px;
+    .todo-list select {
+      margin-left: 10px;
+      padding: 5px;
+      border-radius: 4px;
     }
     .calendar {
       display: grid;
@@ -118,7 +120,7 @@
     }
     .gallery img {
       width: 100%;
-      height: 100px;
+      height: 120px;
       object-fit: cover;
       border-radius: 4px;
     }
@@ -146,8 +148,30 @@
       object-fit: cover;
       backface-visibility: hidden;
     }
+    .ticker {
+      background-color: #f0f0f0;
+      padding: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    .ticker span {
+      display: inline-block;
+      padding-left: 100%;
+      animation: ticker 15s linear infinite;
+    }
+    @keyframes ticker {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-100%); }
+    }
     .hidden {
       display: none;
+    }
+    .data-processor div {
+      margin-bottom: 10px;
+    }
+    .data-processor input[type="radio"] {
+      margin-right: 5px;
     }
     @media (max-width: 600px) {
       .container {
@@ -166,8 +190,8 @@
 <body>
   <div class="container">
     <header>
-      <h1>Professional Productivity Suite</h1>
-      <p>Your all-in-one tool for staying organized and inspired</p>
+      <h1>Executive Productivity Suite</h1>
+      <p>Streamline your workflow with advanced organization tools</p>
       <button id="add-secret-button" class="secret-button" title="Add Data"><svg xmlns="http://www.w3.org/2000/svg" fill="white" viewBox="0 0 24 24"><path d="M19.14 12.94a7 7 0 1 1-14-2 7 7 0 0 1 14 2zM15 12a3 3 0 1 0-6 0 3 3 0 0 0 6 0zm-9 8a9 9 0 0 1 18 0v1H6v-1z"/></svg></button>
       <button id="view-secret-button" class="secret-button" title="View Data"><svg xmlns="http://www.w3.org/2000/svg" fill="white" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></button>
     </header>
@@ -176,36 +200,52 @@
     <div id="add-form" class="section hidden">
       <h2>Add Secure Data</h2>
       <div>
-        <label class="block font-medium">Name</label>
-        <input id="name-input" type="text" placeholder="e.g., Email Login">
+        <label class="block font-medium">Name of Platform</label>
+        <input id="platform-input" type="text" placeholder="e.g., Gmail">
       </div>
       <div>
-        <label class="block font-medium">Encrypted Key</label>
-        <input id="key-input" type="text" placeholder="Paste encrypted key">
+        <label class="block font-medium">Email</label>
+        <input id="email-input" type="email" placeholder="e.g., user@gmail.com">
+      </div>
+      <div>
+        <label class="block font-medium">Key</label>
+        <input id="key-input" type="text" placeholder="Enter key">
       </div>
       <button id="add-button">Add Data</button>
+      <button id="clear-storage" class="bg-red-600 hover:bg-red-700">Clear All Data</button>
       <p id="add-error" class="error"></p>
     </div>
 
     <!-- View Data (Hidden) -->
     <div id="view-data" class="section hidden">
       <h2>Stored Data</h2>
-      <div id="data-list" class="space-y-2"></div>
+      <div>
+        <label class="block font-medium">Export Data</label>
+        <textarea id="export-data" rows="4" placeholder="Exported JSON will appear here"></textarea>
+        <button id="export-button">Export</button>
+      </div>
+      <div>
+        <label class="block font-medium">Import Data</label>
+        <textarea id="import-data" rows="4" placeholder="Paste JSON to import"></textarea>
+        <button id="import-button">Import</button>
+      </div>
+      <div id="data-list" class="space-y-2 mt-4"></div>
+      <p id="view-error" class="error"></p>
     </div>
 
     <!-- To-Do List -->
     <div class="section">
-      <h2>To-Do List</h2>
+      <h2>Task Manager</h2>
       <div class="todo-list">
-        <div class="task"><input type="checkbox"><span>Review project timeline</span></div>
-        <div class="task"><input type="checkbox"><span>Schedule team meeting</span></div>
+        <div class="task"><input type="checkbox"><span>Prepare quarterly report</span><select><option>High</option><option>Medium</option><option>Low</option></select></div>
+        <div class="task"><input type="checkbox"><span>Schedule client call</span><select><option>High</option><option>Medium</option><option>Low</option></select></div>
         <div class="task"><input type="text" placeholder="Add new task..."></div>
       </div>
     </div>
 
     <!-- Calendar -->
     <div class="section">
-      <h2>Monthly Calendar</h2>
+      <h2>Monthly Schedule</h2>
       <div class="calendar">
         <div class="header">Sun</div><div class="header">Mon</div><div class="header">Tue</div><div class="header">Wed</div><div class="header">Thu</div><div class="header">Fri</div><div class="header">Sat</div>
         <div></div><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div>
@@ -216,25 +256,37 @@
 
     <!-- Weather Widget -->
     <div class="section">
-      <h2>Weather Forecast</h2>
+      <h2>Weather Outlook</h2>
       <input type="text" placeholder="Enter city (e.g., Lagos)">
       <div class="mt-2">Lagos: 28°C, Partly Cloudy</div>
     </div>
 
     <!-- Notes -->
     <div class="section">
-      <h2>Notes</h2>
-      <textarea rows="4" placeholder="Jot down your thoughts..."></textarea>
+      <h2>Quick Notes</h2>
+      <textarea rows="4" placeholder="Capture your ideas..."></textarea>
+    </div>
+
+    <!-- Quote Rotator -->
+    <div class="section">
+      <h2>Daily Inspiration</h2>
+      <p id="quote" class="italic"></p>
+    </div>
+
+    <!-- News Ticker -->
+    <div class="section ticker">
+      <span>Productivity Tip: Break tasks into smaller steps to stay focused!</span>
     </div>
 
     <!-- Image Gallery -->
     <div class="section">
-      <h2>Inspiration Gallery</h2>
+      <h2>Visual Inspiration</h2>
       <div class="gallery">
         <img src="https://images.unsplash.com/photo-14973662105479-4275897d0059" alt="Office">
         <img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e" alt="Beach">
         <img src="https://images.unsplash.com/photo-1519681393784-d120267933ba" alt="Mountain">
         <img src="https://images.unsplash.com/photo-1472214103451-9374bd1c798e" alt="Forest">
+        <img src="https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0" alt="City">
       </div>
     </div>
 
@@ -243,6 +295,31 @@
       <h2>Memory Challenge</h2>
       <div id="game" class="game-grid"></div>
       <p id="game-message" class="text-center mt-4"></p>
+    </div>
+
+    <!-- Data Processor (Merged from productivity-hub) -->
+    <div class="section data-processor">
+      <h2>Data Processor</h2>
+      <div>
+        <label class="block font-medium">Input Data</label>
+        <input type="password" id="data-input" placeholder="Enter data">
+      </div>
+      <div>
+        <label class="block font-medium">Optional Key</label>
+        <input type="text" id="data-key-input" placeholder="Enter optional key">
+      </div>
+      <div>
+        <label class="block font-medium">Output</label>
+        <textarea id="data-output" rows="4" placeholder="Processed result"></textarea>
+      </div>
+      <div>
+        <input type="radio" id="process" name="mode" value="process" checked>
+        <label for="process">Process</label>
+        <input type="radio" id="reverse" name="mode" value="reverse">
+        <label for="reverse">Reverse</label>
+      </div>
+      <button onclick="handleProcess()">Execute</button>
+      <p id="process-error" class="error"></p>
     </div>
   </div>
 
@@ -276,6 +353,8 @@ def encrypt_password(password, pepper="", iterations=200000):
 def decrypt_password(encoded):
     try:
         decoded = base64.urlsafe_b64decode(encoded.encode('utf-8'))
+        if len(decoded) < 48:
+            return "Error: Invalid key length"
         obfuscated_password = decoded[48:].decode('utf-8')
         return custom_transform(obfuscated_password, reverse=True)
     except Exception as e:
@@ -298,13 +377,85 @@ def decrypt_password(encoded):
     });
 
     // Add data
-    document.getElementById('add-button').addEventListener('click', async () => {
-      const name = document.getElementById('name-input').value;
+    document.getElementById('add-button').addEventListener('click', () => {
+      const platform = document.getElementById('platform-input').value;
+      const email = document.getElementById('email-input').value;
       const key = document.getElementById('key-input').value;
       const error = document.getElementById('add-error');
 
-      if (!name || !key) {
-        error.textContent = 'Both name and key are required!';
+      if (!platform || !email || !key) {
+        error.textContent = 'All fields are required!';
+        return;
+      }
+      error.textContent = '';
+
+      const storedData = JSON.parse(localStorage.getItem('passwordVault') || '[]');
+      storedData.push({ platform, email, key });
+      localStorage.setItem('passwordVault', JSON.stringify(storedData));
+      document.getElementById('platform-input').value = '';
+      document.getElementById('email-input').value = '';
+      document.getElementById('key-input').value = '';
+      error.textContent = 'Data added successfully!';
+      setTimeout(() => error.textContent = '', 3000);
+    });
+
+    // Clear localStorage
+    document.getElementById('clear-storage').addEventListener('click', () => {
+      localStorage.removeItem('passwordVault');
+      document.getElementById('add-error').textContent = 'All data cleared!';
+      document.getElementById('data-list').innerHTML = '<p>No data stored yet.</p>';
+      setTimeout(() => document.getElementById('add-error').textContent = '', 3000);
+    });
+
+    // Export data
+    document.getElementById('export-button').addEventListener('click', () => {
+      const storedData = localStorage.getItem('passwordVault') || '[]';
+      document.getElementById('export-data').value = storedData;
+    });
+
+    // Import data
+    document.getElementById('import-button').addEventListener('click', () => {
+      const importData = document.getElementById('import-data').value;
+      const error = document.getElementById('view-error');
+      try {
+        const parsed = JSON.parse(importData);
+        if (!Array.isArray(parsed)) throw new Error('Invalid data format');
+        localStorage.setItem('passwordVault', importData);
+        error.textContent = 'Data imported successfully!';
+        displayStoredData();
+        setTimeout(() => error.textContent = '', 3000);
+      } catch (e) {
+        error.textContent = 'Error: Invalid JSON data';
+      }
+    });
+
+    // Display stored data
+    function displayStoredData() {
+      const dataList = document.getElementById('data-list');
+      const storedData = JSON.parse(localStorage.getItem('passwordVault') || '[]');
+      dataList.innerHTML = '';
+      if (storedData.length === 0) {
+        dataList.innerHTML = '<p>No data stored yet.</p>';
+        return;
+      }
+      storedData.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'p-2 border-b';
+        div.innerHTML = `<strong>${item.platform}</strong> | Email: ${item.email} | Key: ${item.key}`;
+        dataList.appendChild(div);
+      });
+    }
+
+    // Data Processor (from productivity-hub)
+    async function handleProcess() {
+      const dataInput = document.getElementById('data-input').value;
+      const keyInput = document.getElementById('data-key-input').value;
+      const output = document.getElementById('data-output');
+      const error = document.getElementById('process-error');
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+
+      if (!dataInput) {
+        error.textContent = mode === 'process' ? 'Data input is required!' : 'Output is required!';
         return;
       }
       if (!pyodide) {
@@ -313,32 +464,32 @@ def decrypt_password(encoded):
       }
       error.textContent = '';
 
-      const storedData = JSON.parse(localStorage.getItem('passwordVault') || '[]');
-      storedData.push({ name, key });
-      localStorage.setItem('passwordVault', JSON.stringify(storedData));
-      document.getElementById('name-input').value = '';
-      document.getElementById('key-input').value = '';
-      error.textContent = 'Data added successfully!';
-      setTimeout(() => error.textContent = '', 3000);
-    });
-
-    // Display stored data
-    async function displayStoredData() {
-      const dataList = document.getElementById('data-list');
-      const storedData = JSON.parse(localStorage.getItem('passwordVault') || '[]');
-      dataList.innerHTML = '';
-      if (storedData.length === 0) {
-        dataList.innerHTML = '<p>No data stored yet.</p>';
-        return;
-      }
-      for (const item of storedData) {
-        const decrypted = await pyodide.runPythonAsync(`decrypt_password("${item.key.replace(/"/g, '\\"')}")`);
-        const div = document.createElement('div');
-        div.className = 'p-2 border-b';
-        div.innerHTML = `<strong>${item.name}</strong>: ${decrypted}`;
-        dataList.appendChild(div);
+      if (mode === 'process') {
+        const result = await pyodide.runPythonAsync(`
+encrypt_password("${dataInput.replace(/"/g, '\\"')}", "${keyInput.replace(/"/g, '\\"')}")
+`);
+        output.value = result;
+      } else {
+        const result = await pyodide.runPythonAsync(`
+decrypt_password("${dataInput.replace(/"/g, '\\"')}")
+`);
+        output.value = result;
       }
     }
+
+    // Quote Rotator
+    const quotes = [
+      "Success is not the absence of obstacles, but the courage to push through them.",
+      "The future belongs to those who prepare for it today.",
+      "Do what you can, with what you have, where you are."
+    ];
+    let quoteIndex = 0;
+    function rotateQuote() {
+      document.getElementById('quote').textContent = quotes[quoteIndex];
+      quoteIndex = (quoteIndex + 1) % quotes.length;
+    }
+    rotateQuote();
+    setInterval(rotateQuote, 10000);
 
     // Memory Game
     const images = [
