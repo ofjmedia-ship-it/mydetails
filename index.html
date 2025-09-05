@@ -199,6 +199,11 @@
     <div id="add-form" class="section hidden">
       <h2>Add Secure Data</h2>
       <div>
+        <label class="block font-medium">GitHub Personal Access Token (Enter once)</label>
+        <input id="github-pat" type="password" placeholder="Enter PAT (e.g., ghp_...)">
+        <button id="save-pat">Save PAT</button>
+      </div>
+      <div>
         <label class="block font-medium">Name of Platform</label>
         <input id="platform-input" type="text" placeholder="e.g., Gmail">
       </div>
@@ -208,7 +213,7 @@
       </div>
       <div>
         <label class="block font-medium">Key</label>
-        <input id="key-input" type="text" placeholder="Enter key">
+        <input id="key-input" type="text" placeholder="Enter encrypted key">
       </div>
       <button id="add-button">Add Data</button>
       <button id="clear-storage" class="bg-red-600 hover:bg-red-700">Clear All Data</button>
@@ -218,16 +223,6 @@
     <!-- View Data (Hidden) -->
     <div id="view-data" class="section hidden">
       <h2>Stored Data</h2>
-      <div>
-        <label class="block font-medium">Master Password</label>
-        <input id="master-password" type="password" placeholder="Enter master password">
-        <button id="load-vault">Load Vault</button>
-      </div>
-      <div>
-        <label class="block font-medium">Save Vault</label>
-        <textarea id="vault-output" rows="4" placeholder="Encrypted vault.json content"></textarea>
-        <button id="save-vault">Generate vault.json</button>
-      </div>
       <div id="data-list" class="space-y-2 mt-4"></div>
       <p id="view-error" class="error"></p>
     </div>
@@ -249,7 +244,6 @@
         <div class="header">Sun</div><div class="header">Mon</div><div class="header">Tue</div><div class="header">Wed</div><div class="header">Thu</div><div class="header">Fri</div><div class="header">Sat</div>
         <div></div><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div>
         <div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div>12</div><div>13</div>
-        <div>14</div><div>15</div><div>16</div><div>17</div><div>18</div><div>19</div><div>20</div>
       </div>
     </div>
 
@@ -304,8 +298,8 @@
         <input type="password" id="data-input" placeholder="Enter data">
       </div>
       <div>
-        <label class="block font-medium">Master Password</label>
-        <input type="password" id="data-key-input" placeholder="Enter master password">
+        <label class="block font-medium">Password</label>
+        <input type="password" id="data-key-input" placeholder="Enter password for encryption">
       </div>
       <div>
         <label class="block font-medium">Output</label>
@@ -361,17 +355,17 @@
       combined.set(salt, 0);
       combined.set(iv, salt.length);
       combined.set(new Uint8Array(encrypted), salt.length + iv.length);
-      return { data: btoa(String.fromCharCode(...combined)), salt, iv };
+      return btoa(String.fromCharCode(...combined));
     }
 
     async function decryptData(encryptedBase64, password) {
       const dec = new TextDecoder();
-      const combined = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
-      const salt = combined.slice(0, 16);
-      const iv = combined.slice(16, 28);
-      const encrypted = combined.slice(28);
-      const key = await deriveKey(password, salt);
       try {
+        const combined = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
+        const salt = combined.slice(0, 16);
+        const iv = combined.slice(16, 28);
+        const encrypted = combined.slice(28);
+        const key = await deriveKey(password, salt);
         const decrypted = await crypto.subtle.decrypt(
           { name: "AES-GCM", iv },
           key,
@@ -383,6 +377,56 @@
       }
     }
 
+    // GitHub API utilities
+    async function getGitHubFile(pat) {
+      try {
+        const response = await fetch(`https://api.github.com/repos/<your-username>/password-vault/contents/data.json`, {
+          headers: { Authorization: `token ${pat}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch data.json');
+        const data = await response.json();
+        return { content: JSON.parse(atob(data.content)), sha: data.sha };
+      } catch (e) {
+        throw new Error(`Error fetching data: ${e.message}`);
+      }
+    }
+
+    async function updateGitHubFile(pat, content, sha) {
+      try {
+        const response = await fetch(`https://api.github.com/repos/<your-username>/password-vault/contents/data.json`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `token ${pat}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: 'Update data.json',
+            content: btoa(JSON.stringify(content, null, 2)),
+            sha
+          })
+        });
+        if (!response.ok) throw new Error('Failed to update data.json');
+        return await response.json();
+      } catch (e) {
+        throw new Error(`Error updating data: ${e.message}`);
+      }
+    }
+
+    // Save PAT
+    document.getElementById('save-pat').addEventListener('click', () => {
+      const pat = document.getElementById('github-pat').value;
+      const error = document.getElementById('add-error');
+      if (!pat) {
+        error.textContent = 'GitHub PAT is required!';
+        return;
+      }
+      localStorage.setItem('githubPAT', pat);
+      error.textContent = 'PAT saved successfully!';
+      document.getElementById('github-pat').value = '';
+      setTimeout(() => error.textContent = '', 3000);
+      loadData();
+    });
+
     // Secret button handlers
     document.getElementById('add-secret-button').addEventListener('click', () => {
       document.getElementById('add-form').classList.toggle('hidden');
@@ -392,120 +436,109 @@
     document.getElementById('view-secret-button').addEventListener('click', () => {
       document.getElementById('view-data').classList.toggle('hidden');
       document.getElementById('add-form').classList.add('hidden');
-      displayStoredData();
+      loadData();
     });
 
     // Add data
-    document.getElementById('add-button').addEventListener('click', () => {
+    document.getElementById('add-button').addEventListener('click', async () => {
+      const pat = localStorage.getItem('githubPAT');
       const platform = document.getElementById('platform-input').value;
       const email = document.getElementById('email-input').value;
       const key = document.getElementById('key-input').value;
       const error = document.getElementById('add-error');
 
+      if (!pat) {
+        error.textContent = 'Please save your GitHub PAT first!';
+        return;
+      }
       if (!platform || !email || !key) {
         error.textContent = 'All fields are required!';
         return;
       }
-      error.textContent = '';
 
-      const storedData = JSON.parse(localStorage.getItem('passwordVault') || '[]');
-      storedData.push({ platform, email, key });
-      localStorage.setItem('passwordVault', JSON.stringify(storedData));
-      document.getElementById('platform-input').value = '';
-      document.getElementById('email-input').value = '';
-      document.getElementById('key-input').value = '';
-      error.textContent = 'Data added successfully!';
-      setTimeout(() => error.textContent = '', 3000);
-      displayStoredData();
-    });
-
-    // Clear localStorage
-    document.getElementById('clear-storage').addEventListener('click', () => {
-      localStorage.removeItem('passwordVault');
-      document.getElementById('add-error').textContent = 'All data cleared!';
-      document.getElementById('data-list').innerHTML = '<p>No data stored yet.</p>';
-      setTimeout(() => document.getElementById('add-error').textContent = '', 3000);
-    });
-
-    // Load vault
-    document.getElementById('load-vault').addEventListener('click', async () => {
-      const masterPassword = document.getElementById('master-password').value;
-      const error = document.getElementById('view-error');
-      if (!masterPassword) {
-        error.textContent = 'Master password is required!';
-        return;
-      }
       try {
-        const response = await fetch('vault.json');
-        if (!response.ok) throw new Error('Failed to load vault.json');
-        const vault = await response.json();
-        const decrypted = await decryptData(vault.accounts, masterPassword);
-        localStorage.setItem('passwordVault', decrypted);
-        error.textContent = 'Vault loaded successfully!';
-        displayStoredData();
+        const { content, sha } = await getGitHubFile(pat);
+        content.accounts.push({ platform, email, key });
+        await updateGitHubFile(pat, content, sha);
+        document.getElementById('platform-input').value = '';
+        document.getElementById('email-input').value = '';
+        document.getElementById('key-input').value = '';
+        error.textContent = 'Data added successfully!';
         setTimeout(() => error.textContent = '', 3000);
+        loadData();
       } catch (e) {
         error.textContent = `Error: ${e.message}`;
       }
     });
 
-    // Save vault
-    document.getElementById('save-vault').addEventListener('click', async () => {
-      const masterPassword = document.getElementById('master-password').value;
-      const vaultOutput = document.getElementById('vault-output');
-      const error = document.getElementById('view-error');
-      if (!masterPassword) {
-        error.textContent = 'Master password is required!';
+    // Clear data
+    document.getElementById('clear-storage').addEventListener('click', async () => {
+      const pat = localStorage.getItem('githubPAT');
+      const error = document.getElementById('add-error');
+      if (!pat) {
+        error.textContent = 'Please save your GitHub PAT first!';
         return;
       }
-      const storedData = localStorage.getItem('passwordVault') || '[]';
       try {
-        const encrypted = await encryptData(storedData, masterPassword);
-        vaultOutput.value = JSON.stringify({ accounts: encrypted.data }, null, 2);
-        error.textContent = 'Vault generated! Copy and update vault.json in the repo.';
+        const { sha } = await getGitHubFile(pat);
+        await updateGitHubFile(pat, { accounts: [] }, sha);
+        error.textContent = 'All data cleared!';
         setTimeout(() => error.textContent = '', 3000);
+        loadData();
       } catch (e) {
-        error.textContent = 'Error: Encryption failed';
+        error.textContent = `Error: ${e.message}`;
       }
     });
 
-    // Display stored data
-    function displayStoredData() {
+    // Load and display data
+    async function loadData() {
+      const pat = localStorage.getItem('githubPAT');
       const dataList = document.getElementById('data-list');
-      const storedData = JSON.parse(localStorage.getItem('passwordVault') || '[]');
-      dataList.innerHTML = '';
-      if (storedData.length === 0) {
+      const error = document.getElementById('view-error');
+      if (!pat) {
+        error.textContent = 'Please save your GitHub PAT in the Add Data section!';
         dataList.innerHTML = '<p>No data stored yet.</p>';
         return;
       }
-      storedData.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'p-2 border-b';
-        div.innerHTML = `<strong>${item.platform}</strong> | Email: ${item.email} | Key: ${item.key}`;
-        dataList.appendChild(div);
-      });
+      try {
+        const { content } = await getGitHubFile(pat);
+        dataList.innerHTML = '';
+        if (content.accounts.length === 0) {
+          dataList.innerHTML = '<p>No data stored yet.</p>';
+          return;
+        }
+        content.accounts.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'p-2 border-b';
+          div.innerHTML = `<strong>${item.platform}</strong> | Email: ${item.email} | Key: ${item.key}`;
+          dataList.appendChild(div);
+        });
+        error.textContent = '';
+      } catch (e) {
+        error.textContent = `Error: ${e.message}`;
+      }
     }
 
     // Data Processor
     async function handleProcess() {
       const dataInput = document.getElementById('data-input').value;
-      const masterPassword = document.getElementById('data-key-input').value;
+      const password = document.getElementById('data-key-input').value;
       const output = document.getElementById('data-output');
       const error = document.getElementById('process-error');
       const mode = document.querySelector('input[name="mode"]:checked').value;
 
-      if (!dataInput || !masterPassword) {
-        error.textContent = 'Data and master password are required!';
+      if (!dataInput || !password) {
+        error.textContent = 'Data and password are required!';
         return;
       }
       error.textContent = '';
 
       try {
         if (mode === 'process') {
-          const encrypted = await encryptData(dataInput, masterPassword);
-          output.value = encrypted.data;
+          const encrypted = await encryptData(dataInput, password);
+          output.value = encrypted;
         } else {
-          const decrypted = await decryptData(dataInput, masterPassword);
+          const decrypted = await decryptData(dataInput, password);
           output.value = decrypted;
         }
       } catch (e) {
@@ -580,6 +613,9 @@
       flippedCards = [];
       setTimeout(() => document.getElementById('game-message').textContent = '', 2000);
     }
+
+    // Initial load
+    loadData();
   </script>
 </body>
 </html>
