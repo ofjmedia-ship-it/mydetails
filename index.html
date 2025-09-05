@@ -4,8 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Executive Productivity Suite</title>
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/staticrypt@2.1.0/dist/staticrypt.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <style>
     body {
@@ -223,16 +221,12 @@
       <div>
         <label class="block font-medium">Master Password</label>
         <input id="master-password" type="password" placeholder="Enter master password">
+        <button id="load-vault">Load Vault</button>
       </div>
       <div>
-        <label class="block font-medium">Save Encrypted Data</label>
-        <textarea id="save-data" rows="4" placeholder="Encrypted data will appear here"></textarea>
-        <button id="save-button">Save Data</button>
-      </div>
-      <div>
-        <label class="block font-medium">Load Encrypted Data</label>
-        <textarea id="load-data" rows="4" placeholder="Paste encrypted data"></textarea>
-        <button id="load-button">Load Data</button>
+        <label class="block font-medium">Save Vault</label>
+        <textarea id="vault-output" rows="4" placeholder="Encrypted vault.json content"></textarea>
+        <button id="save-vault">Generate vault.json</button>
       </div>
       <div id="data-list" class="space-y-2 mt-4"></div>
       <p id="view-error" class="error"></p>
@@ -310,8 +304,8 @@
         <input type="password" id="data-input" placeholder="Enter data">
       </div>
       <div>
-        <label class="block font-medium">Optional Key</label>
-        <input type="text" id="data-key-input" placeholder="Enter optional key">
+        <label class="block font-medium">Master Password</label>
+        <input type="password" id="data-key-input" placeholder="Enter master password">
       </div>
       <div>
         <label class="block font-medium">Output</label>
@@ -319,9 +313,9 @@
       </div>
       <div>
         <input type="radio" id="process" name="mode" value="process" checked>
-        <label for="process">Process</label>
+        <label for="process">Encrypt</label>
         <input type="radio" id="reverse" name="mode" value="reverse">
-        <label for="reverse">Reverse</label>
+        <label for="reverse">Decrypt</label>
       </div>
       <button onclick="handleProcess()">Execute</button>
       <p id="process-error" class="error"></p>
@@ -329,45 +323,65 @@
   </div>
 
   <script>
-    let pyodide = null;
-
-    // Load Pyodide and Python code
-    async function loadPyodideAndRun() {
-      pyodide = await loadPyodide();
-      await pyodide.loadPackage('micropip');
-      const pythonCode = `
-import hashlib
-import base64
-import os
-
-def custom_transform(text, reverse=False):
-    if not reverse:
-        shifted = ''.join(chr((ord(c) + 5) % 128) for c in text)
-        return shifted[::-1]
-    else:
-        unreversed = text[::-1]
-        return ''.join(chr((ord(c) - 5) % 128) for c in unreversed)
-
-def encrypt_password(password, pepper="", iterations=200000):
-    transformed = custom_transform(password + pepper)
-    salt = os.urandom(16)
-    key = hashlib.pbkdf2_hmac('sha256', (password + pepper).encode('utf-8'), salt, iterations, dklen=32)
-    combined = salt + key + transformed.encode('utf-8')
-    return base64.urlsafe_b64encode(combined).decode('utf-8')
-
-def decrypt_password(encoded):
-    try:
-        decoded = base64.urlsafe_b64decode(encoded.encode('utf-8'))
-        if len(decoded) < 48:
-            return "Error: Invalid key length"
-        obfuscated_password = decoded[48:].decode('utf-8')
-        return custom_transform(obfuscated_password, reverse=True)
-    except Exception as e:
-        return f"Error: {str(e)}"
-`;
-      pyodide.runPython(pythonCode);
+    // Encryption utilities
+    async function deriveKey(password, salt) {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(password),
+        { name: "PBKDF2" },
+        false,
+        ["deriveBits", "deriveKey"]
+      );
+      return await crypto.subtle.deriveKey(
+        {
+          name: "PBKDF2",
+          salt: salt || crypto.getRandomValues(new Uint8Array(16)),
+          iterations: 100000,
+          hash: "SHA-256"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+      );
     }
-    loadPyodideAndRun();
+
+    async function encryptData(data, password) {
+      const enc = new TextEncoder();
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const key = await deriveKey(password, salt);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encrypted = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        key,
+        enc.encode(data)
+      );
+      const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+      combined.set(salt, 0);
+      combined.set(iv, salt.length);
+      combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+      return { data: btoa(String.fromCharCode(...combined)), salt, iv };
+    }
+
+    async function decryptData(encryptedBase64, password) {
+      const dec = new TextDecoder();
+      const combined = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
+      const salt = combined.slice(0, 16);
+      const iv = combined.slice(16, 28);
+      const encrypted = combined.slice(28);
+      const key = await deriveKey(password, salt);
+      try {
+        const decrypted = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv },
+          key,
+          encrypted
+        );
+        return dec.decode(decrypted);
+      } catch (e) {
+        throw new Error("Decryption failed: Invalid password or data");
+      }
+    }
 
     // Secret button handlers
     document.getElementById('add-secret-button').addEventListener('click', () => {
@@ -402,6 +416,7 @@ def decrypt_password(encoded):
       document.getElementById('key-input').value = '';
       error.textContent = 'Data added successfully!';
       setTimeout(() => error.textContent = '', 3000);
+      displayStoredData();
     });
 
     // Clear localStorage
@@ -412,47 +427,45 @@ def decrypt_password(encoded):
       setTimeout(() => document.getElementById('add-error').textContent = '', 3000);
     });
 
-    // Save encrypted data
-    document.getElementById('save-button').addEventListener('click', () => {
+    // Load vault
+    document.getElementById('load-vault').addEventListener('click', async () => {
       const masterPassword = document.getElementById('master-password').value;
-      const saveData = document.getElementById('save-data');
       const error = document.getElementById('view-error');
+      if (!masterPassword) {
+        error.textContent = 'Master password is required!';
+        return;
+      }
+      try {
+        const response = await fetch('vault.json');
+        if (!response.ok) throw new Error('Failed to load vault.json');
+        const vault = await response.json();
+        const decrypted = await decryptData(vault.accounts, masterPassword);
+        localStorage.setItem('passwordVault', decrypted);
+        error.textContent = 'Vault loaded successfully!';
+        displayStoredData();
+        setTimeout(() => error.textContent = '', 3000);
+      } catch (e) {
+        error.textContent = `Error: ${e.message}`;
+      }
+    });
 
+    // Save vault
+    document.getElementById('save-vault').addEventListener('click', async () => {
+      const masterPassword = document.getElementById('master-password').value;
+      const vaultOutput = document.getElementById('vault-output');
+      const error = document.getElementById('view-error');
       if (!masterPassword) {
         error.textContent = 'Master password is required!';
         return;
       }
       const storedData = localStorage.getItem('passwordVault') || '[]';
       try {
-        const encrypted = Staticrypt.encrypt(storedData, masterPassword);
-        saveData.value = encrypted;
-        error.textContent = 'Data encrypted successfully! Copy this string.';
+        const encrypted = await encryptData(storedData, masterPassword);
+        vaultOutput.value = JSON.stringify({ accounts: encrypted.data }, null, 2);
+        error.textContent = 'Vault generated! Copy and update vault.json in the repo.';
         setTimeout(() => error.textContent = '', 3000);
       } catch (e) {
         error.textContent = 'Error: Encryption failed';
-      }
-    });
-
-    // Load encrypted data
-    document.getElementById('load-button').addEventListener('click', () => {
-      const masterPassword = document.getElementById('master-password').value;
-      const loadData = document.getElementById('load-data').value;
-      const error = document.getElementById('view-error');
-
-      if (!masterPassword || !loadData) {
-        error.textContent = 'Master password and encrypted data are required!';
-        return;
-      }
-      try {
-        const decrypted = Staticrypt.decrypt(loadData, masterPassword);
-        const parsed = JSON.parse(decrypted);
-        if (!Array.isArray(parsed)) throw new Error('Invalid data format');
-        localStorage.setItem('passwordVault', decrypted);
-        error.textContent = 'Data loaded successfully!';
-        displayStoredData();
-        setTimeout(() => error.textContent = '', 3000);
-      } catch (e) {
-        error.textContent = 'Error: Invalid password or data';
       }
     });
 
@@ -476,31 +489,27 @@ def decrypt_password(encoded):
     // Data Processor
     async function handleProcess() {
       const dataInput = document.getElementById('data-input').value;
-      const keyInput = document.getElementById('data-key-input').value;
+      const masterPassword = document.getElementById('data-key-input').value;
       const output = document.getElementById('data-output');
       const error = document.getElementById('process-error');
       const mode = document.querySelector('input[name="mode"]:checked').value;
 
-      if (!dataInput) {
-        error.textContent = mode === 'process' ? 'Data input is required!' : 'Output is required!';
-        return;
-      }
-      if (!pyodide) {
-        error.textContent = 'Processing environment not loaded yet.';
+      if (!dataInput || !masterPassword) {
+        error.textContent = 'Data and master password are required!';
         return;
       }
       error.textContent = '';
 
-      if (mode === 'process') {
-        const result = await pyodide.runPythonAsync(`
-encrypt_password("${dataInput.replace(/"/g, '\\"')}", "${keyInput.replace(/"/g, '\\"')}")
-`);
-        output.value = result;
-      } else {
-        const result = await pyodide.runPythonAsync(`
-decrypt_password("${dataInput.replace(/"/g, '\\"')}")
-`);
-        output.value = result;
+      try {
+        if (mode === 'process') {
+          const encrypted = await encryptData(dataInput, masterPassword);
+          output.value = encrypted.data;
+        } else {
+          const decrypted = await decryptData(dataInput, masterPassword);
+          output.value = decrypted;
+        }
+      } catch (e) {
+        error.textContent = `Error: ${e.message}`;
       }
     }
 
